@@ -15,6 +15,7 @@
     .loading-spinner { display: none; }
     .paste-box { border: 2px dashed #003366; background-color: #f8f9fa; border-radius: 8px; padding: 15px; text-align: center; cursor: pointer; transition: all 0.2s ease-in-out; }
     .paste-box:focus, .paste-box:hover { background-color: #e9ecef; border-color: #002244; outline: none; }
+    .poster-card { border: 1px solid #003366; background: #fff; padding: 8px; border-radius: 6px; }
   </style>
 </head>
 <body>
@@ -191,11 +192,31 @@
       <div class="section-header">12. Lampiran & Muat Naik Dokumen Bukti</div>
       <div class="row g-3">
         <div class="col-md-6"><label class="form-label">a) Kertas Cadangan / Kertas Kerja (PDF)</label><input type="file" class="form-control" id="fileKertasCadangan" accept="application/pdf"></div>
-        <div class="col-md-6"><label class="form-label">b) Poster / Hebahan (Max 3 PDF)</label><input type="file" class="form-control" id="filePoster" accept="application/pdf" multiple></div>
+        
+        <!-- b) POSTER PDF & SCREENSHOT COPY PASTE (MAX 3) -->
+        <div class="col-md-6">
+          <label class="form-label fw-bold">b) Poster / Hebahan (Max 3 PDF / Screenshot)</label>
+          <input type="file" class="form-control mb-2" id="filePoster" accept="application/pdf" multiple>
+          
+          <div class="paste-box" id="posterPasteBox" tabindex="0">
+            <p class="mb-1 text-primary fw-bold" style="font-size: 0.9rem;">📋 ATAU Klik di sini & tekan Ctrl + V untuk tampal Screenshot Poster (Maksimum 3)</p>
+            <small class="text-muted" id="posterCountNote">0 daripada 3 screenshot ditampal</small>
+            <div id="posterImagePreview" class="row g-2 mt-2"></div>
+          </div>
+        </div>
+
         <div class="col-md-6"><label class="form-label">c) Senarai Kehadiran Peserta (Max 3 PDF)</label><input type="file" class="form-control" id="fileKehadiran" accept="application/pdf" multiple></div>
         <div class="col-md-6"><label class="form-label">d) 3 Salinan Refleksi Pelajar - Lampiran 4 (PDF)</label><input type="file" class="form-control" id="fileSalinanRefleksi" accept="application/pdf" multiple></div>
         <div class="col-md-6"><label class="form-label">e) Maklum Balas Juri / Dokumen Lain (Max 5 PDF)</label><input type="file" class="form-control" id="fileJuri" accept="application/pdf" multiple></div>
-        <div class="col-md-6"><label class="form-label">f) Gambar Aktiviti (Max 20 Gambar PNG/JPG)</label><input type="file" class="form-control" id="fileGambar" accept="image/*" multiple></div>
+        
+        <!-- f) GAMBAR AKTIVITI DENGAN TAJUK MANUAL -->
+        <div class="col-md-12">
+          <label class="form-label fw-bold">f) Gambar Aktiviti beserta Tajuk / Penerangan Manual (Max 20 Gambar)</label>
+          <input type="file" class="form-control" id="fileGambarInput" accept="image/*" multiple onchange="handleGambarSelect(this)">
+          <small class="text-muted">Setiap gambar yang dimuat naik boleh diletakkan tajuk secara manual. Gambar akan dijana secara kemas dalam 1 Fail PDF Gambar Aktiviti (Grid 2x3 per m/s).</small>
+          
+          <div id="gambarPreviewContainer" class="row g-3 mt-2"></div>
+        </div>
       </div>
 
       <!-- PENGESAHAN & TANDATANGAN -->
@@ -235,6 +256,8 @@
   var tentatifImageBase64 = "";
   var juriImageBase64 = "";
   var refleksiImageBase64 = "";
+  var posterImagesArray = [];
+  var selectedGambarItems = [];
 
   window.onload = function() {
     addObjektifRow("Membina hubungan yang erat dengan politeknik dan industri (KPI PPI)");
@@ -255,9 +278,11 @@
     setupPasteListener('refleksiPasteBox', 'refleksiImagePreview', function(data) {
       refleksiImageBase64 = data;
     });
+
+    setupPosterPasteListener();
   };
 
-  // FUNGSI COPY-PASTE SCREENSHOT DARI CLIPBOARD
+  // FUNGSI COPY-PASTE SCREENSHOT TUNGGAL
   function setupPasteListener(boxId, previewId, callback) {
     var box = document.getElementById(boxId);
     box.addEventListener('paste', function(e) {
@@ -288,6 +313,107 @@
     if (boxId === 'tentatifPasteBox') tentatifImageBase64 = "";
     if (boxId === 'juriPasteBox') juriImageBase64 = "";
     if (boxId === 'refleksiPasteBox') refleksiImageBase64 = "";
+  }
+
+  // FUNGSI COPY-PASTE SCREENSHOT POSTER (MAX 3)
+  function setupPosterPasteListener() {
+    var box = document.getElementById('posterPasteBox');
+    box.addEventListener('paste', function(e) {
+      if (posterImagesArray.length >= 3) {
+        alert("Maksimum 3 screenshot poster sahaja dibenarkan.");
+        e.preventDefault();
+        return;
+      }
+      var items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          var blob = items[i].getAsFile();
+          var reader = new FileReader();
+          reader.onload = function(event) {
+            var b64 = event.target.result;
+            posterImagesArray.push(b64);
+            renderPosterPreviews();
+          };
+          reader.readAsDataURL(blob);
+          e.preventDefault();
+          break;
+        }
+      }
+    });
+  }
+
+  function renderPosterPreviews() {
+    var container = document.getElementById('posterImagePreview');
+    var note = document.getElementById('posterCountNote');
+    note.textContent = posterImagesArray.length + " daripada 3 screenshot ditampal";
+    container.innerHTML = "";
+    
+    posterImagesArray.forEach((b64, index) => {
+      var col = document.createElement('div');
+      col.className = 'col-4 text-center position-relative';
+      col.innerHTML = `
+        <div class="poster-card">
+          <img src="${b64}" style="width:100%; height:100px; object-fit:contain;" />
+          <button type="button" class="btn btn-sm btn-danger w-100 mt-1 py-0" style="font-size:0.75rem;" onclick="removePosterImage(${index})">Padam</button>
+        </div>
+      `;
+      container.appendChild(col);
+    });
+  }
+
+  function removePosterImage(index) {
+    posterImagesArray.splice(index, 1);
+    renderPosterPreviews();
+  }
+
+  // FUNGSI PENGENDALIAN MUAT NAIK GAMBAR AKTIVITI DENGAN TAJUK MANUAL
+  async function handleGambarSelect(input) {
+    var files = input.files;
+    if (!files || files.length === 0) return;
+    var limit = Math.min(files.length, 20);
+    selectedGambarItems = [];
+
+    for (var i = 0; i < limit; i++) {
+      var b64Obj = await fileToBase64(files[i]);
+      selectedGambarItems.push({
+        fileObj: files[i],
+        data: b64Obj.data,
+        title: "Gambar " + (i + 1) + ": " + (files[i].name.split('.')[0] || "Aktiviti PPI")
+      });
+    }
+    renderGambarPreviews();
+  }
+
+  function renderGambarPreviews() {
+    var container = document.getElementById('gambarPreviewContainer');
+    container.innerHTML = "";
+
+    selectedGambarItems.forEach((item, idx) => {
+      var col = document.createElement('div');
+      col.className = "col-md-6 col-lg-4";
+      col.innerHTML = `
+        <div class="card h-100 shadow-sm border p-2 text-center">
+          <img src="${item.data}" style="height: 140px; object-fit: contain;" class="card-img-top mb-2 border rounded" />
+          <div class="card-body p-1">
+            <label class="form-label small fw-bold mb-1">Tajuk / Penerangan Gambar ${idx + 1}:</label>
+            <input type="text" class="form-control form-control-sm text-center" value="${escapeQuotes(item.title)}" onchange="updateGambarTitle(${idx}, this.value)">
+            <button type="button" class="btn btn-sm btn-outline-danger w-100 mt-2 py-0" onclick="removeGambarItem(${idx})">Padam Gambar Ini</button>
+          </div>
+        </div>
+      `;
+      container.appendChild(col);
+    });
+  }
+
+  function updateGambarTitle(idx, val) {
+    if (selectedGambarItems[idx]) {
+      selectedGambarItems[idx].title = val;
+    }
+  }
+
+  function removeGambarItem(idx) {
+    selectedGambarItems.splice(idx, 1);
+    renderGambarPreviews();
   }
 
   // MENAMBAH OBJEKTIF DINAMIK (BAHAGIAN 5)
@@ -462,6 +588,8 @@
       tentatifImage: tentatifImageBase64,
       juriImage: juriImageBase64,
       refleksiImage: refleksiImageBase64,
+      posterImages: posterImagesArray,
+      gambarList: selectedGambarItems.map(item => ({ title: item.title, data: item.data })),
       objektifList: [],
       cqiList: [],
       juriList: [],
@@ -518,7 +646,7 @@
       });
     });
 
-    // BACA FAIL-FAIL UPLOAD (GAMBAR AKTIVITI UP TO 20)
+    // BACA FAIL-FAIL UPLOAD (PDF)
     try {
       formData.files.senaraiJuriPdf = await readFileInput(document.getElementById('fileSenaraiJuri'), 1);
       formData.files.kertasCadangan = await readFileInput(document.getElementById('fileKertasCadangan'), 1);
@@ -527,7 +655,6 @@
       formData.files.rumusanRefleksi = await readFileInput(document.getElementById('fileRumusanRefleksi'), 5);
       formData.files.salinanRefleksi = await readFileInput(document.getElementById('fileSalinanRefleksi'), 3);
       formData.files.juri = await readFileInput(document.getElementById('fileJuri'), 5);
-      formData.files.gambar = await readFileInput(document.getElementById('fileGambar'), 20);
     } catch(err) {
       alert("Ralat semasa membaca fail: " + err);
       submitBtn.disabled = false;
@@ -557,14 +684,18 @@
       spinner.style.display = 'none';
       if (response.success) {
         alertBox.className = 'alert alert-success mt-4';
-        alertBox.innerHTML = '<strong>Berjaya!</strong> Laporan PDF Lampiran 3 telah dijana.<br><a href="' + response.url + '" target="_blank" class="alert-link">Klik di sini untuk membuka PDF Laporan</a>';
+        alertBox.innerHTML = '<strong>Berjaya!</strong> Laporan PDF Lampiran 3 telah dijana.<br><a href="' + response.url + '" target="_blank" class="alert-link">Klik di sini untuk membuka PDF Laporan Utama</a>';
         form.reset();
         tentatifImageBase64 = "";
         juriImageBase64 = "";
         refleksiImageBase64 = "";
+        posterImagesArray = [];
+        selectedGambarItems = [];
         document.getElementById('tentatifImagePreview').innerHTML = '';
         document.getElementById('juriImagePreview').innerHTML = '';
         document.getElementById('refleksiImagePreview').innerHTML = '';
+        document.getElementById('posterImagePreview').innerHTML = '';
+        document.getElementById('gambarPreviewContainer').innerHTML = '';
         document.getElementById('objektifBody').innerHTML = '';
         document.getElementById('cqiBody').innerHTML = '';
         document.getElementById('juriBody').innerHTML = '';
